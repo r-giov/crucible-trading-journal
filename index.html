@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Matrix Trading Journal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+/* General Matrix Theme */
+body {
+  background: black;
+  font-family: 'Courier New', monospace;
+  color: #00ff99;
+  margin: 0;
+  padding: 0;
+}
+
+/* Layout */
+.container {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+h1 {
+  color: #00ff99;
+  text-shadow: 0 0 5px #00ff99;
+  font-size: 1.8em;
+  margin-bottom: 10px;
+}
+
+h2 {
+  color: #00ff99;
+  text-shadow: 0 0 3px #00ff99;
+  font-size: 1.4em;
+}
+
+/* Form Styling */
+form {
+  background: rgba(0,0,0,0.8);
+  border: 1px solid #00ff99;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+label {
+  display: block;
+  margin-top: 8px;
+}
+
+input, select, textarea, button {
+  width: 100%;
+  padding: 6px;
+  background: black;
+  border: 1px solid #00ff99;
+  color: #00ff99;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  margin-top: 12px;
+  background: linear-gradient(90deg, #00ff99, #00cc66);
+  border: none;
+  color: black;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: linear-gradient(90deg, #00cc66, #00ff99);
+}
+
+/* Stats */
+.stats {
+  background: rgba(0,0,0,0.8);
+  border: 1px solid #00ff99;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.stat-item {
+  display: inline-block;
+  margin-right: 20px;
+}
+
+/* Table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 6px;
+  border-bottom: 1px solid #00ff99;
+  text-align: left;
+}
+
+th {
+  color: #00ff99;
+}
+
+tr:hover {
+  background: rgba(0,255,153,0.1);
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Left Panel: Form -->
+  <div>
+    <h1>Matrix Trading Journal</h1>
+    <form id="tradeForm">
+      <label>Date: <input type="date" name="date" required></label>
+      <label>Time: <input type="time" name="time" required></label>
+      <label>Symbol: <input type="text" name="symbol" required></label>
+      <label>Direction:
+        <select name="direction">
+          <option value="Long">Long</option>
+          <option value="Short">Short</option>
+        </select>
+      </label>
+      <label>Strategy: <input type="text" name="strategy"></label>
+      <label>Entry Price: <input type="number" step="0.0001" name="entry"></label>
+      <label>Exit Price: <input type="number" step="0.0001" name="exit"></label>
+      <label>Stop Loss: <input type="number" step="0.0001" name="sl"></label>
+      <label>Take Profit: <input type="number" step="0.0001" name="tp"></label>
+      <label>Position Size: <input type="number" step="0.01" name="size"></label>
+      <label>Risk %: <input type="number" step="0.01" name="risk"></label>
+      <label>Profit/Loss: <input type="number" step="0.01" name="profit"></label>
+      <label>Notes: <textarea name="notes"></textarea></label>
+      <button type="submit">Log Trade</button>
+    </form>
+    <p id="status"></p>
+  </div>
+
+  <!-- Right Panel: Stats & Log -->
+  <div>
+    <h2>Performance Stats</h2>
+    <div class="stats">
+      <div class="stat-item">Win Rate: <span id="statWinRate">0%</span></div>
+      <div class="stat-item">Total P/L: <span id="statPL">$0</span></div>
+      <div class="stat-item">Avg R/R: <span id="statRR">0</span></div>
+    </div>
+    <h2>Trade Log</h2>
+    <table id="tradeTable">
+      <thead>
+        <tr>
+          <th>Date</th><th>Symbol</th><th>Dir</th><th>P/L</th><th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const scriptURL = "PASTE_YOUR_WEB_APP_URL_HERE"; // Google Apps Script Web App URL
+
+let trades = [];
+
+document.getElementById("tradeForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  const jsonData = {};
+  formData.forEach((value, key) => { jsonData[key] = value; });
+
+  // Save to Google Sheets
+  fetch(scriptURL, {
+    method: 'POST',
+    body: JSON.stringify(jsonData),
+    headers: { "Content-Type": "application/json" }
+  })
+  .then(() => {
+    document.getElementById("status").innerText = "Trade logged!";
+    trades.push(jsonData);
+    updateTable();
+    updateStats();
+    this.reset();
+  })
+  .catch(error => {
+    document.getElementById("status").innerText = "Error logging trade.";
+    console.error(error);
+  });
+});
+
+function updateTable() {
+  const tbody = document.querySelector("#tradeTable tbody");
+  tbody.innerHTML = "";
+  trades.forEach(t => {
+    const row = `<tr>
+      <td>${t.date}</td>
+      <td>${t.symbol}</td>
+      <td>${t.direction}</td>
+      <td>${t.profit}</td>
+      <td>${t.notes || ""}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
+}
+
+function updateStats() {
+  if (trades.length === 0) return;
+  let wins = 0, totalPL = 0, rrSum = 0, rrCount = 0;
+  trades.forEach(t => {
+    const profit = parseFloat(t.profit || 0);
+    totalPL += profit;
+    if (profit > 0) wins++;
+    if (t.entry && t.sl && t.tp) {
+      const risk = Math.abs(t.entry - t.sl);
+      const reward = Math.abs(t.tp - t.entry);
+      if (risk > 0) {
+        rrSum += (reward / risk);
+        rrCount++;
+      }
+    }
+  });
+  document.getElementById("statWinRate").innerText = ((wins / trades.length) * 100).toFixed(1) + "%";
+  document.getElementById("statPL").innerText = "$" + totalPL.toFixed(2);
+  document.getElementById("statRR").innerText = (rrCount > 0 ? (rrSum / rrCount).toFixed(2) : "0");
+}
+</script>
+
+</body>
+</html>
