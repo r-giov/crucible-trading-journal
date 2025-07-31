@@ -1,0 +1,2 @@
+# crucible-trading-journal
+
